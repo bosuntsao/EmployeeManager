@@ -1,9 +1,79 @@
 ﻿@model List<Employee>
 <h1>員工清單</h1>
-<table>
-    <tr><th>姓名</th><th>部門</th><th>薪資</th></tr>
-    @foreach (var emp in Model)
-    {
-        <tr><td>@emp.Name</td><td>@emp.Department</td><td>@emp.Salary</td></tr>
-    }
+<div>
+    <input type="text" id="name" required />
+    <input type="text" id="department" required />
+    <input type="number" id="salary" required />
+    <button id="addBtn">新增</button>
+    <button id="statsBtn">統計</button>
+</div>
+<div id="statsResult"></div>
+<table id="employeeTable">
+    <thead><tr><th>姓名</th><th>部門</th><th>薪資</th><th>操作</th></tr></thead>
+    <tbody id="employeeList"></tbody>
 </table>
+<script>
+    let employees = @Html.Raw(Json.Serialize(Model));
+    const tbody = document.getElementById('employeeList');
+
+    function renderTable() {
+        tbody.innerHTML = employees.map(e => `
+            <tr>
+                <td>${e.name}</td>
+                <td>${e.department}</td>
+                <td>${e.salary}</td>
+                <td><button class="deleteBtn" data-id="${e.id}">刪除</button></td>
+            </tr>
+        `).join('');
+        document.querySelectorAll('.deleteBtn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                fetch(`/Employee/Delete/${btn.getAttribute('data-id')}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            employees = employees.filter(e => e.id != data.id);
+                            renderTable();
+                            alert(data.message);
+                        }
+                    });
+            });
+        });
+    }
+
+    document.getElementById('addBtn').addEventListener('click', () => {
+        const employee = {
+            Name: document.getElementById('name').value,
+            Department: document.getElementById('department').value,
+            Salary: parseInt(document.getElementById('salary').value)
+        };
+        fetch('/Employee/Create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(employee)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                employees.push(data.data);
+                renderTable();
+                alert(data.message);
+            } else {
+                alert(data.message);
+            }
+        });
+    });
+
+    document.getElementById('statsBtn').addEventListener('click', () => {
+        fetch('/Employee/Stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('statsResult').innerHTML = data.data.map(stat => `
+                        <p>${stat.department}: ${stat.employeeCount} 人，平均薪資 ${stat.avgSalary}</p>
+                    `).join('');
+                }
+            });
+    });
+
+    renderTable();
+</script>
