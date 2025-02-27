@@ -1,49 +1,80 @@
 ﻿using EmployeeManager.Models;
+using EmployeeManager.Services;
 using Microsoft.AspNetCore.Mvc;
 
-namespace EmployeeManager.Controllers
+public class EmployeeController : Controller
 {
-    // Controllers/EmployeeController.cs
-    public class EmployeeController : Controller
+    private readonly EmployeeService _employeeService;
+
+    // 透過依賴注入接收 EmployeeService
+    public EmployeeController(EmployeeService employeeService)
     {
-        private readonly AppDbContext _context;
+        _employeeService = employeeService;
+    }
 
-        public EmployeeController(AppDbContext context)
-        {
-            _context = context;
-        }
+    // 顯示員工清單頁面
+    public IActionResult Index()
+    {
+        var employees = _employeeService.GetAllEmployees(); // 從 Service 獲取員工列表
+        return View(employees);
+    }
 
-        public IActionResult Index()
+    // 新增員工 (POST)
+    [HttpPost]
+    public IActionResult Create([FromBody] Employee employee)
+    {
+        try
         {
-            var employees = _context.Employees
-                .Where(e=>e.Department == "IT")
-                .OrderBy(e=>e.Salary)
-                .ToList();
-            return View(employees);
-        }
-
-        public IActionResult Stats()
-        {
-            var stats = _context.Employees
-                .GroupBy(e => e.Department)
-                .Select(g=>new { Department = g.Key, AvgSalary = g.Average(e => e.Salary) })
-                .ToList();
-            return Json(stats);
-        }
-
-        [HttpGet]
-        public IActionResult Create() => View();
-                
-        [HttpPost]
-        public IActionResult Create([FromBody] Employee employee)
-        {
-            if (ModelState.IsValid)
+            var createdEmployee = _employeeService.CreatEmployee(employee);
+            return Json(new
             {
-                _context.Employees.Add(employee);
-                _context.SaveChanges();
-                return Json(new { success = true, message = "員工新增成功！", data = employee });
-            }
-            return Json(new { success = false, message = "輸入資料有誤，請檢查" });
+                success = true,
+                message = "員工新增成功！",
+                data = new
+                {
+                    createdEmployee.Id,
+                    createdEmployee.Name,
+                    createdEmployee.Department,
+                    createdEmployee.Salary
+                }
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "新增失敗，請稍後再試" });
+        }
+    }
+
+    // 刪除員工 (DELETE)
+    [HttpDelete]
+    public IActionResult Delete(int id)
+    {
+        var success = _employeeService.DeleteEmployee(id);
+        if (success)
+            return Json(new { success = true, message = "員工已刪除", id = id });
+        return Json(new { success = false, message = "員工不存在" });
+    }
+
+    // 查詢部門統計 (GET)
+    [HttpGet]
+    public IActionResult Stats()
+    {
+        try
+        {
+            var stats = _employeeService.GetDepartmentStats();
+            return Json(new { success = true, data = stats });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "查詢失敗: " + ex.Message });
         }
     }
 }
