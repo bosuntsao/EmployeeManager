@@ -1,4 +1,5 @@
 ﻿using EmployeeManager.Models;
+using EmployeeManager.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EmployeeManager.Controllers
@@ -6,44 +7,42 @@ namespace EmployeeManager.Controllers
     // Controllers/EmployeeController.cs
     public class EmployeeController : Controller
     {
-        private readonly AppDbContext _context;
+        private readonly EmployeeService _employeeService;
 
-        public EmployeeController(AppDbContext context)
+        public EmployeeController(EmployeeService employeeService)
         {
-            _context = context;
+            _employeeService = employeeService;
         }
 
         public IActionResult Index()
         {
-            var employees = _context.Employees
-                .Where(e=>e.Department == "IT")
-                .OrderBy(e=>e.Salary)
-                .ToList();
+            var employees = _employeeService.GetAllEmployees();
             return View(employees);
         }
 
-        public IActionResult Stats()
-        {
-            var stats = _context.Employees
-                .GroupBy(e => e.Department)
-                .Select(g=>new { Department = g.Key, AvgSalary = g.Average(e => e.Salary) })
-                .ToList();
-            return Json(stats);
-        }
-
-        [HttpGet]
-        public IActionResult Create() => View();
-                
         [HttpPost]
         public IActionResult Create([FromBody] Employee employee)
         {
-            if (ModelState.IsValid)
+            try
             {
-                _context.Employees.Add(employee);
-                _context.SaveChanges();
-                return Json(new { success = true, message = "員工新增成功！", data = employee });
+                var createdEmployee = _employeeService.CreatEmployee(employee);
+                return Json(new { success = true, message = "員工新增成功！", data = new { employee.Id, employee.Name, employee.Department, employee.Salary } });
             }
-            return Json(new { success = false, message = "輸入資料有誤，請檢查" });
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = "輸入資料有誤，請檢查" });
+            }
+        }
+
+        [HttpDelete]
+        public IActionResult Delete(int id)
+        {
+            var success = _employeeService.DeleteEmployee(id);
+            if (success)
+            {
+                return Json(new { success = true, message = "員工已刪除" });                
+            }
+            return Json(new { success = false, message = "員工不存在" });
         }
     }
 }
